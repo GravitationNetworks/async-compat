@@ -134,7 +134,7 @@ use std::task::{Context, Poll};
 use std::thread;
 
 use futures_core::ready;
-use once_cell::sync::Lazy;
+use once_cell::sync::{Lazy, OnceCell};
 use pin_project_lite::pin_project;
 
 /// Applies the [`Compat`] adapter to futures and I/O types.
@@ -454,8 +454,15 @@ impl<T: futures_io::AsyncSeek> tokio::io::AsyncSeek for Compat<T> {
 }
 
 fn get_runtime_handle() -> tokio::runtime::Handle {
-    tokio::runtime::Handle::try_current().unwrap_or_else(|_| TOKIO1.handle().clone())
+    tokio::runtime::Handle::try_current().unwrap_or_else(|_| {
+        OVERRIDE_RUNTIME
+            .get()
+            .map(|rt| rt.handle().clone())
+            .unwrap_or_else(|| TOKIO1.handle().clone())
+    })
 }
+
+static OVERRIDE_RUNTIME: OnceCell<tokio::runtime::Runtime> = OnceCell::new();
 
 static TOKIO1: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
     thread::Builder::new()
@@ -476,6 +483,19 @@ impl Future for Pending {
     fn poll(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
         Poll::Pending
     }
+}
+
+/// Inject a tokio runtime that should be used whenever compat runs outside of an existing
+/// tokio context.
+///
+/// This is useful when the application already owns a runtime and wants `async-compat` to reuse
+/// it instead of spinning up the fallback runtime. Call this before any compat futures are
+/// polled outside of a tokio runtime, otherwise the fallback `TOKIO1` will already have been
+/// initialized.
+pub fn set_tokio_rt(runtime: tokio::runtime::Runtime) {
+    OVERRIDE_RUNTIME
+        .set(runtime)
+        .expect("async-compat tokio runtime has already been set");
 }
 
 #[cfg(test)]
