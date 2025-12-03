@@ -492,10 +492,8 @@ impl Future for Pending {
 /// it instead of spinning up the fallback runtime. Call this before any compat futures are
 /// polled outside of a tokio runtime, otherwise the fallback `TOKIO1` will already have been
 /// initialized.
-pub fn set_tokio_rt(runtime: tokio::runtime::Runtime) {
-    OVERRIDE_RUNTIME
-        .set(runtime)
-        .expect("async-compat tokio runtime has already been set");
+pub fn set_tokio_rt(runtime: tokio::runtime::Runtime) -> Result<(), tokio::runtime::Runtime> {
+    OVERRIDE_RUNTIME.set(runtime)
 }
 
 #[cfg(test)]
