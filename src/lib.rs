@@ -453,7 +453,7 @@ impl<T: futures_io::AsyncSeek> tokio::io::AsyncSeek for Compat<T> {
     }
 }
 
-fn get_runtime_handle() -> tokio::runtime::Handle {
+pub fn get_runtime_handle() -> tokio::runtime::Handle {
     tokio::runtime::Handle::try_current().unwrap_or_else(|_| {
         OVERRIDE_RUNTIME
             .get()
